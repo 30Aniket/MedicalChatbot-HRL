@@ -3,7 +3,8 @@
 import time
 import argparse
 import pickle
-import sys, os
+import sys
+import os
 import random
 import json
 import torch
