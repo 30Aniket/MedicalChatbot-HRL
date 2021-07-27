@@ -6,9 +6,10 @@ dialogue manager for hierarchical reinforcement learning policy
 import copy
 import random
 from collections import deque
-import sys, os
+import sys
+import os
 
-sys.path.append(os.getcwd().replace("src/dialogue_system/dialogue_manager",""))
+sys.path.append(os.getcwd().replace("src/dialogue_system/dialogue_manager", ""))
 
 from src.dialogue_system.state_tracker import StateTracker as StateTracker
 from src.dialogue_system import dialogue_configuration
@@ -21,6 +22,7 @@ class DialogueManager_HRL(object):
     """
     Dialogue manager of this dialogue system.
     """
+
     def __init__(self, user, agent, parameter):
         self.state_tracker = StateTracker(user=user, agent=agent, parameter=parameter)
         self.parameter = parameter
@@ -34,7 +36,7 @@ class DialogueManager_HRL(object):
         self.group_id_match = 0
         self.repeated_action_count = 0
         self.slot_set = pickle.load(open(self.parameter.get("slot_set"), 'rb'))
-        self.disease_symptom = pickle.load(open(self.parameter.get("disease_symptom"),'rb'))
+        self.disease_symptom = pickle.load(open(self.parameter.get("disease_symptom"), 'rb'))
         self.slot_set.pop('disease')
         self.id2disease = {}
         self.disease2id = {}
@@ -43,18 +45,17 @@ class DialogueManager_HRL(object):
             self.disease2id[disease] = v['index']
         self.disease_replay = deque(maxlen=10000)
         self.worker_right_inform_num = 0
-        self.acc_by_group = {x:[0,0,0] for x in ['12', '13', '14', '19', '1', '4', '5', '6', '7']}
+        self.acc_by_group = {x: [0, 0, 0] for x in ['12', '13', '14', '19', '1', '4', '5', '6', '7']}
         # 这里的三维向量分别表示inform的症状正确的个数、group匹配正确的个数、隶属于某个group的个数
 
-
-        if self.parameter.get("train_mode")==False:
-            self.test_by_group = {x:[0,0,0] for x in ['12', '13', '14', '19', '1', '4', '5', '6', '7']}
-            #这里的三维向量分别表示成功次数、group匹配正确的个数、隶属于某个group的个数
+        if self.parameter.get("train_mode") == False:
+            self.test_by_group = {x: [0, 0, 0] for x in ['12', '13', '14', '19', '1', '4', '5', '6', '7']}
+            # 这里的三维向量分别表示成功次数、group匹配正确的个数、隶属于某个group的个数
             self.disease_record = []
             self.lower_reward_by_group = {x: [] for x in ['12', '13', '14', '19', '1', '4', '5', '6', '7']}
             # self.master_index_by_group = {x:[] for x in ['12', '13', '14', '19', '1', '4', '5', '6', '7']}
             self.master_index_by_group = []
-            self.symptom_by_group = {x: [0,0] for x in ['12', '13', '14', '19', '1', '4', '5', '6', '7']}
+            self.symptom_by_group = {x: [0, 0] for x in ['12', '13', '14', '19', '1', '4', '5', '6', '7']}
 
     def next(self, greedy_strategy, save_record, index):
         """
@@ -68,124 +69,147 @@ class DialogueManager_HRL(object):
         lower_reward = 0
         state = self.state_tracker.get_state()
         group_id = self.state_tracker.user.goal["group_id"]
-        if self.parameter.get("agent_id")=='agentdqn':
+        if self.parameter.get("agent_id") == 'agentdqn':
             self.master_action_space = self.state_tracker.agent.action_space
         else:
             self.master_action_space = self.state_tracker.agent.master_action_space
-        #if self.state_tracker.agent.subtask_terminal:
+        # if self.state_tracker.agent.subtask_terminal:
         #    self.master_state = copy.deepcopy(state)
         if self.parameter.get("agent_id") == 'agentdqn':
             master_action_index = len(self.master_action_space)
-            agent_action,  lower_action_index = self.state_tracker.agent.next(state=state, turn=self.state_tracker.turn,
-                                                                                            greedy_strategy=greedy_strategy,
-                                                                                            index=index)
+            agent_action, lower_action_index = self.state_tracker.agent.next(state=state, turn=self.state_tracker.turn,
+                                                                             greedy_strategy=greedy_strategy,
+                                                                             index=index)
         else:
             agent_action, master_action_index, lower_action_index = self.state_tracker.agent.next(state=state, turn=self.state_tracker.turn,
-                                                                                              greedy_strategy=greedy_strategy, index=index)
+                                                                                                  greedy_strategy=greedy_strategy,
+                                                                                                  index=index)
         if len(agent_action["request_slots"]) > 0:
             lower_action = list(agent_action["request_slots"].keys())[0]
             assert len(list(agent_action["request_slots"].keys())) == 1
             action_type = "symptom"
         elif len(agent_action["inform_slots"]) > 0:
             lower_action = list(agent_action["inform_slots"].keys())[0]
-            assert len(list(agent_action["inform_slots"].keys()))==1
+            assert len(list(agent_action["inform_slots"].keys())) == 1
             action_type = "disease"
-            #print("#########")
+            # print("#########")
         else:
             lower_action = "return to master"
             assert agent_action["action"] == 'return'
             action_type = 'return'
-            #print("***************************************************************************************")
-        #print(state['turn'])
+            # print("***************************************************************************************")
+        # print(state['turn'])
 
-        if self.parameter.get("disease_as_action")==False:
+        if self.parameter.get("disease_as_action") == False:
             if self.parameter.get("train_mode") == True:
                 condition = False
             else:
-                condition = state['turn']==self.parameter.get("max_turn")+16
-            if action_type == "disease" or condition:# or lower_action in self.lower_action_history:
-                #once the action is repeated or the dialogue reach the max turn, then the classifier will output the predicted disease
+                condition = state['turn'] == self.parameter.get("max_turn") + 16
+            if action_type == "disease" or condition:  # or lower_action in self.lower_action_history:
+                # once the action is repeated or the dialogue reach the max turn, then the classifier will output the predicted disease
                 state_rep = self.current_state_representation(state)
+                # print(state)
+                # print(state_rep)
+                # print("Length of slot_set: ", len(self.slot_set))
+                # print("Length of disease_symptom: ", len(self.disease_symptom))
+                list3 = self.dummy(state_rep)
+                # print("List3: ", list3)
+                # test_batch = random.sample(self.disease_replay, min(1000, len(self.disease_replay)))
+                # print("Test_batch: ", test_batch)
+                # if len(test_batch) == 0:
+                #     print("Not Possible.")
+                # else:
+                #     test_batch2 = test_batch[0]
+                #     test_batch3 = test_batch2[0]
+                #     number = test_batch2[1]
+                #     print("Test_batch2: ", test_batch2)
+                #     print("Number: ", number)
+                #     list4 = self.dummy(test_batch3)
+                #     print("List4: ", list4)
                 disease = self.state_tracker.user.goal["disease_tag"]
-                Ys, pre_disease = self.model.predict([state_rep])
+                # Ys, pre_disease = self.model.predict([state_rep])
+                Ys, pre_disease = self.model.predict([list3])
                 '''
                 if index>20:
                     print(Ys)
                     temp = self.exp_transform(Ys.detach().cpu().numpy()[0])
                     print(max(temp), temp)
                 '''
-                #print(self.id2disease[pre_disease[0]])
+                # print(self.id2disease[pre_disease[0]])
                 self.disease_replay.append((state_rep, self.disease2id[disease]))
                 lower_action_index = -1
                 master_action_index = len(self.master_action_space)
-                agent_action = {'action': 'inform', 'inform_slots': {"disease":self.id2disease[pre_disease[0]]}, 'request_slots': {},"explicit_inform_slots":{}, "implicit_inform_slots":{}}
-                #print(agent_action)
+                agent_action = {'action': 'inform', 'inform_slots': {"disease": self.id2disease[pre_disease[0]]}, 'request_slots': {},
+                                "explicit_inform_slots": {}, "implicit_inform_slots": {}}
+                # print(agent_action)
                 if self.parameter.get("train_mode") == False:
-                    self.disease_record.append([disease,self.id2disease[pre_disease[0]]])
+                    self.disease_record.append([disease, self.id2disease[pre_disease[0]]])
 
-        #if master_action_index==9:
+        # if master_action_index==9:
         #    print(master_action_index)  这里也存在9
         self.state_tracker.state_updater(agent_action=agent_action)
         # print("turn:%2d, state for agent:\n" % (state["turn"]) , json.dumps(state))
 
         # User takes action.
-        user_action, reward, episode_over, dialogue_status = self.state_tracker.user.next(agent_action=agent_action,turn=self.state_tracker.turn)
+        user_action, reward, episode_over, dialogue_status = self.state_tracker.user.next(agent_action=agent_action,
+                                                                                          turn=self.state_tracker.turn)
         self.state_tracker.state_updater(user_action=user_action)
         # print("turn:%2d, update after user :\n" % (state["turn"]), json.dumps(state))
-        #print('status', dialogue_status)
-
+        # print('status', dialogue_status)
 
         # if self.state_tracker.turn == self.state_tracker.max_turn:
         #     episode_over = True
 
         if master_action_index < len(self.master_action_space):
             self.master_action_history.append(self.master_action_space[master_action_index])
-        #print(self.state_tracker.get_state()["turn"])
-        #print(master_action_index)
+        # print(self.state_tracker.get_state()["turn"])
+        # print(master_action_index)
 
-        if  self.parameter.get("initial_symptom"):
-            if self.master_action_space[master_action_index] == group_id and self.state_tracker.get_state()["turn"]==2:
+        if self.parameter.get("initial_symptom"):
+            if self.master_action_space[master_action_index] == group_id and self.state_tracker.get_state()["turn"] == 2:
                 reward = self.parameter.get("reward_for_success")
                 self.group_id_match += 1
             elif episode_over == True:
-                reward = reward/2
+                reward = reward / 2
             else:
                 reward = 0
-        elif self.parameter.get("use_all_labels") and episode_over==True:
-            #if self.master_action_space[master_action_index] == group_id and action_type == "disease":
+        elif self.parameter.get("use_all_labels") and episode_over == True:
+            # if self.master_action_space[master_action_index] == group_id and action_type == "disease":
             #    reward = self.parameter.get("reward_for_success")
-            #else:
+            # else:
             #    reward = 0
-            if self.parameter.get("agent_id").lower() == "agenthrlnew" and self.parameter.get("disease_as_action")==True:
-                if self.master_action_space[master_action_index] == group_id and action_type == "disease" and reward!=self.parameter.get("reward_for_success"):
-                    reward = self.parameter.get("reward_for_success")/2
+            if self.parameter.get("agent_id").lower() == "agenthrlnew" and self.parameter.get("disease_as_action") == True:
+                if self.master_action_space[master_action_index] == group_id and action_type == "disease" and reward != self.parameter.get(
+                        "reward_for_success"):
+                    reward = self.parameter.get("reward_for_success") / 2
             elif self.parameter.get("agent_id").lower() == "agenthrlnew" and self.parameter.get("disease_as_action") == False:
-                if action_type=="disease" and master_action_index<len(self.master_action_space):
+                if action_type == "disease" and master_action_index < len(self.master_action_space):
                     reward = self.parameter.get("reward_for_repeated_action")
-                    self.repeated_action_count +=1
+                    self.repeated_action_count += 1
                     dialogue_status = dialogue_configuration.DIALOGUE_STATUS_FAILED
-                    #print("#############")
+                    # print("#############")
 
             elif self.parameter.get("agent_id").lower() == "agenthrlnew2":
-                #print(action_type,master_action_index)
-                if action_type=="disease" and master_action_index<len(self.master_action_space):
+                # print(action_type,master_action_index)
+                if action_type == "disease" and master_action_index < len(self.master_action_space):
                     reward = self.parameter.get("reward_for_repeated_action")
-                    self.repeated_action_count +=1
+                    self.repeated_action_count += 1
 
-                    #reward = -33
-                    #print("$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$")
+                    # reward = -33
+                    # print("$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$")
 
-        if action_type=="symptom"  and self.parameter.get("agent_id").lower() == "agenthrljoint" and self.parameter.get("disease_as_action") == False:
-            #print('##############')
-            #if master_action_index==9:
+        if action_type == "symptom" and self.parameter.get("agent_id").lower() == "agenthrljoint" and self.parameter.get(
+                "disease_as_action") == False:
+            # print('##############')
+            # if master_action_index==9:
             #    print(master_action_index)  通过action_type的筛选已经去除了master_action_index为9的情形
             self.acc_by_group[group_id][2] += 1
             if self.master_action_space[master_action_index] == group_id:
-                #reward = 10
+                # reward = 10
                 self.acc_by_group[group_id][1] += 1
                 if self.lower_reward_function(state=state, next_state=self.state_tracker.get_state()) > 0:
                     self.acc_by_group[group_id][0] += 1
-            #else:
+            # else:
             #    reward = -1
 
             alpha = 88
@@ -196,22 +220,22 @@ class DialogueManager_HRL(object):
                 lower_reward = max(0, lower_reward1)
                 reward = lower_reward
 
-        if self.parameter.get('agent_id').lower()=='agenthrljoint2' and lower_action in self.lower_action_history:
+        if self.parameter.get('agent_id').lower() == 'agenthrljoint2' and lower_action in self.lower_action_history:
             lower_reward = self.parameter.get("reward_for_repeated_action")
 
-        if self.parameter.get("agent_id") == "agenthrljoint2" and self.parameter.get("disease_as_action")==False and agent_action["action"]!="inform":
-            #print(master_action_index)
-            reward, lower_reward = self.next_by_hrl_joint2(dialogue_status, lower_action, state, master_action_index, group_id, episode_over, reward)
+        if self.parameter.get("agent_id") == "agenthrljoint2" and self.parameter.get("disease_as_action") == False and agent_action[
+            "action"] != "inform":
+            # print(master_action_index)
+            reward, lower_reward = self.next_by_hrl_joint2(dialogue_status, lower_action, state, master_action_index, group_id,
+                                                           episode_over, reward)
         else:
             if lower_action in self.action_history:
                 reward = self.parameter.get("reward_for_repeated_action")
-                #print("************************")
+                # print("************************")
                 self.repeated_action_count += 1
                 episode_over = True
             else:
                 self.action_history.append(lower_action)
-
-
 
         if dialogue_status == dialogue_configuration.DIALOGUE_STATUS_INFORM_WRONG_DISEASE:
             self.inform_wrong_disease_count += 1
@@ -225,8 +249,7 @@ class DialogueManager_HRL(object):
         # if len(self.state_tracker.user.state["rest_slots"].keys()) ==0:
         #     print(self.state_tracker.user.goal)
         #     print(dialogue_status,self.state_tracker.user.state)
-        #print(reward)
-
+        # print(reward)
 
         if save_record is True:
             if self.parameter.get('prioritized_replay'):
@@ -240,20 +263,20 @@ class DialogueManager_HRL(object):
                     reward=reward,
                     episode_over=episode_over,
                     TD_error=TD_error,
-                    lower_reward = lower_reward
+                    lower_reward=lower_reward
                 )
             else:
-                #print(self.action_history)
-                if self.parameter.get("initial_symptom") is False or self.state_tracker.get_state()["turn"]==2:
+                # print(self.action_history)
+                if self.parameter.get("initial_symptom") is False or self.state_tracker.get_state()["turn"] == 2:
                     self.record_training_sample(
                         state=state,
                         agent_action=lower_action_index,
                         next_state=self.state_tracker.get_state(),
                         reward=reward,
                         episode_over=episode_over,
-                        lower_reward = lower_reward,
-                        master_action_index = master_action_index
-                        )
+                        lower_reward=lower_reward,
+                        master_action_index=master_action_index
+                    )
 
         # Output the dialogue.
         slots_proportion_list = []
@@ -267,23 +290,23 @@ class DialogueManager_HRL(object):
                 if values == True:
                     num_of_true_slots += 1
             num_of_all_slots = len(current_slots)
-            slots_proportion_list.append(num_of_true_slots - 1)  #表示current slot问到的隐性slot的个数
-            slots_proportion_list.append(num_of_all_slots - 1)   #表示current slot中含有的所有隐性slot的个数，即request的次数
-            slots_proportion_list.append(real_implicit_slots)    #表示当前的goal 当中所含有的true slot的个数
+            slots_proportion_list.append(num_of_true_slots - 1)  # 表示current slot问到的隐性slot的个数
+            slots_proportion_list.append(num_of_all_slots - 1)  # 表示current slot中含有的所有隐性slot的个数，即request的次数
+            slots_proportion_list.append(real_implicit_slots)  # 表示当前的goal 当中所含有的true slot的个数
             try:
                 last_master_action = self.master_action_history[-1]
             except:
                 last_master_action = -1
-            if self.save_dialogue == True :
+            if self.save_dialogue == True:
                 state = self.state_tracker.get_state()
                 goal = self.state_tracker.user.get_goal()
                 self.__output_dialogue(state=state, goal=goal, master_history=self.master_action_history)
             if last_master_action == group_id:
                 self.group_id_match += 1
             self.master_action_history = []
-            if self.parameter.get("train_mode") == False and self.parameter.get("agent_id").lower()=="agenthrlnew2":
-                #self.test_by_group[group_id][2] += 1
-                #if last_master_action == group_id:
+            if self.parameter.get("train_mode") == False and self.parameter.get("agent_id").lower() == "agenthrlnew2":
+                # self.test_by_group[group_id][2] += 1
+                # if last_master_action == group_id:
                 #    self.test_by_group[group_id][1] += 1
                 #    if reward == self.parameter.get("reward_for_success"):
                 #        self.test_by_group[group_id][0] += 1
@@ -383,34 +406,35 @@ class DialogueManager_HRL(object):
         # print("turn:%2d, initialized state:\n" % (state["turn"]), json.dumps(state))
 
     def record_training_sample(self, state, agent_action, reward, next_state, episode_over, **kwargs):
-        if self.parameter.get("agent_id").lower() in ["agenthrljoint",'agenthrljoint2']:
+        if self.parameter.get("agent_id").lower() in ["agenthrljoint", 'agenthrljoint2']:
             lower_reward = kwargs.get("lower_reward")
             master_action_index = kwargs.get("master_action_index")
-            self.state_tracker.agent.record_training_sample(state, agent_action, reward, next_state, episode_over, lower_reward, master_action_index)
+            self.state_tracker.agent.record_training_sample(state, agent_action, reward, next_state, episode_over, lower_reward,
+                                                            master_action_index)
         else:
             self.state_tracker.agent.record_training_sample(state, agent_action, reward, next_state, episode_over)
 
     def record_prioritized_training_sample(self, state, agent_action, reward, next_state, episode_over, TD_error, **kwargs):
-        if self.parameter.get("agent_id").lower() in ["agenthrljoint",'agenthrljoint2']:
+        if self.parameter.get("agent_id").lower() in ["agenthrljoint", 'agenthrljoint2']:
             lower_reward = kwargs.get("lower_reward")
             self.state_tracker.agent.record_prioritized_training_sample(state, agent_action, reward, next_state,
                                                                         episode_over, TD_error, lower_reward)
         else:
             self.state_tracker.agent.record_prioritized_training_sample(state, agent_action, reward, next_state, episode_over, TD_error)
 
-    def set_agent(self,agent):
+    def set_agent(self, agent):
         self.state_tracker.set_agent(agent=agent)
 
     def train(self):
         self.state_tracker.agent.train_dqn()
         self.state_tracker.agent.update_target_network()
 
-    def __output_dialogue(self,state, goal, master_history):
+    def __output_dialogue(self, state, goal, master_history):
         history = state["history"]
-        file = open(file=self.dialogue_output_file,mode="a+",encoding="utf-8")
-        file.write("User goal: " + str(goal)+"\n")
+        file = open(file=self.dialogue_output_file, mode="a+", encoding="utf-8")
+        file.write("User goal: " + str(goal) + "\n")
         for turn in history:
-            #print(turn)
+            # print(turn)
             try:
                 speaker = turn["speaker"]
             except:
@@ -421,7 +445,7 @@ class DialogueManager_HRL(object):
             if speaker == "agent":
                 try:
                     master_action = master_history.pop(0)
-                    file.write(speaker + ": master+ " + str(master_action) +' +'+ action + "; inform_slots:"
+                    file.write(speaker + ": master+ " + str(master_action) + ' +' + action + "; inform_slots:"
                                + str(inform_slots) + "; request_slots:" + str(request_slots) + "\n")
                 except:
                     file.write(speaker + ": master+ " + ' +' + action + "; inform_slots:" + str(inform_slots)
@@ -439,6 +463,7 @@ class DialogueManager_HRL(object):
         :param next_state:
         :return:
         """
+
         def delete_item_from_dict(item, value):
             new_item = {}
             for k, v in item.items():
@@ -453,7 +478,7 @@ class DialogueManager_HRL(object):
         next_slot_dict = delete_item_from_dict(next_slot_dict, dialogue_configuration.I_DO_NOT_KNOW)
         gamma = self.parameter.get("gamma")
         return gamma * len(next_slot_dict) - len(slot_dict)
-        #return max(0, gamma * len(next_slot_dict) - len(slot_dict))
+        # return max(0, gamma * len(next_slot_dict) - len(slot_dict))
 
     def current_state_representation(self, state):
         """
@@ -462,18 +487,18 @@ class DialogueManager_HRL(object):
         :return: a vector that has equal length with slot set.
         """
         assert 'disease' not in self.slot_set.keys()
-        state_rep = [0]*len(self.slot_set)
+        state_rep = [0] * len(self.slot_set)
         current_slots = copy.deepcopy(state['current_slots'])
         if self.parameter.get('data_type') == 'simulated':
             for slot, value in current_slots['inform_slots'].items():
                 if value == True:
                     state_rep[self.slot_set[slot]] = 1
-                #elif value == "I don't know.":
+                # elif value == "I don't know.":
                 #    state_rep[self.slot_set[slot]] = -1
-                #else:
+                # else:
                 #    print(value)
                 #    raise ValueError("the slot value of inform slot is not among True and I don't know")
-            #print(state_rep)
+            # print(state_rep)
         elif self.parameter.get('data_type') == 'real':
             for slot, value in current_slots['inform_slots'].items():
                 if value == True:
@@ -482,28 +507,39 @@ class DialogueManager_HRL(object):
                     state_rep[self.slot_set[slot]] = -1
         return state_rep
 
+    def dummy(self, list):
+        list2 = []
+        ctr = 0
+        for i in range(0, len(list)):
+            if list[i] == 1:
+                ctr += 1
+                list2.append(i)
+        for i in range(ctr, 10):
+            list2.append(-1)
+        return list2
+
     def current_state_representation_both(self, state):
         assert 'disease' not in self.slot_set.keys()
         state_rep = np.zeros((len(self.slot_set.keys()), 3))
         current_slots = copy.deepcopy(state['current_slots'])
-        #for slot, value in current_slots['inform_slots'].items():
+        # for slot, value in current_slots['inform_slots'].items():
         for slot in self.slot_set:
             if slot in current_slots['inform_slots']:
                 if current_slots['inform_slots'][slot] == True:
-                    state_rep[self.slot_set[slot],:] = [1,0,0]
+                    state_rep[self.slot_set[slot], :] = [1, 0, 0]
                 elif current_slots['inform_slots'][slot] == dialogue_configuration.I_DO_NOT_KNOW:
-                    state_rep[self.slot_set[slot],:] = [0,1,0]
+                    state_rep[self.slot_set[slot], :] = [0, 1, 0]
                 else:
-                    state_rep[self.slot_set[slot],:] = [0,0,1]
+                    state_rep[self.slot_set[slot], :] = [0, 0, 1]
             else:
-                state_rep[self.slot_set[slot],:] = [0,0,1]
-                #raise ValueError("the slot value of inform slot is not among True and I don't know")
+                state_rep[self.slot_set[slot], :] = [0, 0, 1]
+                # raise ValueError("the slot value of inform slot is not among True and I don't know")
         print(state_rep)
         state_rep1 = state_rep.reshape(1, len(self.slot_set.keys()) * 3)[0]
         return state_rep1
 
     def train_ml_classifier(self):
-        goal_set = pickle.load(open(self.parameter.get("goal_set"),'rb'))
+        goal_set = pickle.load(open(self.parameter.get("goal_set"), 'rb'))
         disease_y = []
         total_set = random.sample(goal_set['train'], 5000)
 
@@ -526,7 +562,10 @@ class DialogueManager_HRL(object):
         self.model.fit(slots_exp, disease_y)
 
     def build_deep_learning_classifier(self):
-        self.model = dl_classifier(input_size=len(self.slot_set), hidden_size=256,
+        # self.model = dl_classifier(input_size=len(self.slot_set), hidden_size=256,
+        #                            output_size=len(self.disease_symptom),
+        #                            parameter=self.parameter)
+        self.model = dl_classifier(input_size=10, hidden_size=256,
                                    output_size=len(self.disease_symptom),
                                    parameter=self.parameter)
         if self.parameter.get("train_mode") == False:
@@ -538,16 +577,16 @@ class DialogueManager_HRL(object):
             self.model.eval_mode()
 
     def train_deep_learning_classifier(self, epochs):
-        #self.model.train_dl_classifier(epochs=5000)
-        #print("############   the deep learning model is training over  ###########")
+        # self.model.train_dl_classifier(epochs=5000)
+        # print("############   the deep learning model training is over  ###########")
         for iter in range(epochs):
-            batch = random.sample(self.disease_replay, min(self.parameter.get("batch_size"),len(self.disease_replay)))
+            batch = random.sample(self.disease_replay, min(self.parameter.get("batch_size"), len(self.disease_replay)))
             loss = self.model.train(batch=batch)
 
-        test_batch = random.sample(self.disease_replay, min(1000,len(self.disease_replay)))
+        test_batch = random.sample(self.disease_replay, min(1000, len(self.disease_replay)))
         test_acc = self.model.test(test_batch=test_batch)
         print('disease_replay:{},loss:{:.4f}, test_acc:{:.4f}'.format(len(self.disease_replay), loss["loss"], test_acc))
-        #self.model.test_dl_classifier()
+        # self.model.test_dl_classifier()
 
     def save_dl_model(self, model_performance, episodes_index, checkpoint_path=None):
         # Saving master agent
@@ -558,4 +597,4 @@ class DialogueManager_HRL(object):
         exp_sum = 0
         for i in x:
             exp_sum += np.exp(i)
-        return [np.exp(i)/exp_sum for i in x]
+        return [np.exp(i) / exp_sum for i in x]
