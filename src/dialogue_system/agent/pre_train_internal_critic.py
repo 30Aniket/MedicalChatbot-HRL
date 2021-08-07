@@ -3,7 +3,8 @@
 
 import torch
 import numpy as np
-import sys, os
+import sys
+import os
 import pickle
 import copy
 from tqdm import tqdm
