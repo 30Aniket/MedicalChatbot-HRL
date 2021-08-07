@@ -514,7 +514,7 @@ class DialogueManager_HRL(object):
             if list[i] == 1:
                 ctr += 1
                 list2.append(i)
-        for i in range(ctr, 10):
+        for i in range(ctr, 7):
             list2.append(-1)
         return list2
 
@@ -565,7 +565,7 @@ class DialogueManager_HRL(object):
         # self.model = dl_classifier(input_size=len(self.slot_set), hidden_size=256,
         #                            output_size=len(self.disease_symptom),
         #                            parameter=self.parameter)
-        self.model = dl_classifier(input_size=10, hidden_size=256,
+        self.model = dl_classifier(input_size=7, hidden_size=256,
                                    output_size=len(self.disease_symptom),
                                    parameter=self.parameter)
         if self.parameter.get("train_mode") == False:
