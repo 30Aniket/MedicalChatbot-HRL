@@ -42,7 +42,7 @@ parser.add_argument("--simulate_epoch_number", dest="simulate_epoch_number", typ
 parser.add_argument("--simulation_size", dest="simulation_size", type=int, default=100, help="The number of simulated sessions in each simulated epoch.")
 parser.add_argument("--evaluate_session_number", dest="evaluate_session_number", type=int, default=1000, help="the size of each simulate epoch when evaluation.")
 parser.add_argument("--experience_replay_pool_size", dest="experience_replay_pool_size", type=int, default=10000, help="the size of experience replay.")
-parser.add_argument("--hidden_size_dqn", dest="hidden_size_dqn", type=int, default=1024, help="the hidden_size of DQN.")
+parser.add_argument("--hidden_size_dqn", dest="hidden_size_dqn", type=int, default=512, help="the hidden_size of DQN.")
 parser.add_argument("--warm_start", dest="warm_start",type=boolean_string, default=False, help="Filling the replay buffer with the experiences of rule-based agents. {True, False}")
 parser.add_argument("--warm_start_epoch_number", dest="warm_start_epoch_number", type=int, default=30, help="the number of epoch of warm starting.")
 parser.add_argument("--batch_size", dest="batch_size", type=int, default=100, help="the batch size when training.")
