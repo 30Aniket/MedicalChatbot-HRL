@@ -515,7 +515,7 @@ class DialogueManager_HRL(object):
             if list[i] == 1:
                 ctr += 1
                 list2.append(i)
-        for i in range(ctr, 10):
+        for i in range(ctr, 7):
             list2.append(-1)
         return list2
 
